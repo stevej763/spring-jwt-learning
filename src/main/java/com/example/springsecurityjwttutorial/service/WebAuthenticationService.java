@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -43,33 +44,44 @@ public class WebAuthenticationService {
     }
 
     public AuthenticationResponse createAccount(AccountCreationRequest accountCreationRequest) {
-        PersistedUser user = new PersistedUser(
-                UUID.randomUUID(),
-                accountCreationRequest.getUsername(),
-                encoder.encode(accountCreationRequest.getPassword()));
-        PersistedUser createdUser = userRepository.save(user);
-        LOGGER.info("saved new user to userRepository user={}", createdUser);
+        PersistedUser createdUser = persistUserData(accountCreationRequest);
         AuthenticationRequest request = new AuthenticationRequest(createdUser.getUserName(), accountCreationRequest.getPassword());
         return createAuthenticationToken(request);
     }
 
+    private PersistedUser persistUserData(AccountCreationRequest accountCreationRequest) {
+        PersistedUser user = new PersistedUser(
+                UUID.randomUUID(),
+                accountCreationRequest.getUsername(),
+                encoder.encode(accountCreationRequest.getPassword()));
+        PersistedUser persistedUser = userRepository.save(user);
+        LOGGER.info("saved new user to userRepository user={}", persistedUser);
+        return persistedUser;
+    }
+
     public AuthenticationResponse createAuthenticationToken(AuthenticationRequest request) {
         try {
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    request.getUsername(),
-                    request.getPassword());
-            LOGGER.info("preauthentication manager for user={}", request.getUsername());
-
-            authenticationManager.authenticate(authentication);
-            LOGGER.info("user={} has been authenticated", request.getUsername());
-        } catch (Exception exception) {
-            LOGGER.info("caught bad credentials exception={}", exception.getCause().getMessage());
-            return new AuthenticationResponse(false, null, "problem authenticating");
+            authenticateUser(request);
+        } catch (AuthenticationException exception) {
+            LOGGER.info("caught authentication exception={}", exception.toString());
+            return new AuthenticationResponse(false, null, null, "problem authenticating");
         }
-        LOGGER.info("retrieving user details for new user");
+        String jwt = generateJwt(request);
+        return new AuthenticationResponse(true, jwt, null, null);
+    }
+
+    private String generateJwt(AuthenticationRequest request) {
         UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
-        String jwt = jwtUtility.generateToken(userDetails);
+        String jwt = jwtUtility.generateAccessToken(userDetails);
         LOGGER.info("new JWT generated for user={} jwt={}",userDetails.getUsername(), jwt);
-        return new AuthenticationResponse(true, jwt, null);
+        return jwt;
+    }
+
+    private void authenticateUser(AuthenticationRequest request) {
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                request.getUsername(),
+                request.getPassword());
+        authenticationManager.authenticate(authentication);
+        LOGGER.info("principle={} has been authenticated", authentication.getPrincipal());
     }
 }

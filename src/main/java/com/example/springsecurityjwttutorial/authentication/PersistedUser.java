@@ -29,4 +29,13 @@ public class PersistedUser {
     public String getPassword() {
         return password;
     }
+
+    @Override
+    public String toString() {
+        return "PersistedUser{" +
+                "id=" + id +
+                ", userName='" + userName + '\'' +
+                ", password='" + password + '\'' +
+                '}';
+    }
 }

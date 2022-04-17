@@ -6,13 +6,16 @@ public class AuthenticationResponse {
 
     private final boolean success;
     private final String jwt;
+    private final String refreshToken;
     private final String errorMessage;
 
     public AuthenticationResponse(@JsonProperty("success") boolean success,
-                                  @JsonProperty("jwt") String jwt,
+                                  @JsonProperty("accessToken") String accessToken,
+                                  @JsonProperty("refreshToken") String refreshToken,
                                   @JsonProperty("errorMessage") String errorMessage) {
         this.success = success;
-        this.jwt = jwt;
+        this.jwt = accessToken;
+        this.refreshToken = refreshToken;
         this.errorMessage = errorMessage;
     }
 
@@ -26,5 +29,9 @@ public class AuthenticationResponse {
 
     public String getErrorMessage() {
         return errorMessage;
+    }
+
+    public String getRefreshToken() {
+        return refreshToken;
     }
 }

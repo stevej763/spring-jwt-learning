@@ -10,6 +10,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 import static java.util.Collections.emptyList;
 
 
@@ -24,10 +26,15 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        LOGGER.info("loading user from repository");
         try {
-            PersistedUser existingUser = userRepository.findByUserName(username);
-            return new User(existingUser.getUserName(), existingUser.getPassword(), emptyList());
+            Optional<PersistedUser> existingUser = Optional.of(userRepository.findByUserName(username));
+            if (existingUser.isPresent()) {
+                PersistedUser user = existingUser.get();
+                LOGGER.info("Found existing user in repository for userName={}", username);
+                return new User(user.getUserName(), user.getPassword(), emptyList());
+            } else {
+                throw new UsernameNotFoundException("Incorrect username or password");
+            }
         } catch (Exception e) {
             throw new UsernameNotFoundException("Incorrect username or password", e.getCause());
         }

@@ -2,10 +2,12 @@ package com.example.springsecurityjwttutorial.filter;
 
 import com.example.springsecurityjwttutorial.authentication.UserDetailsServiceImpl;
 import com.example.springsecurityjwttutorial.jwt.JwtUtility;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,6 +21,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class JwtRequestFilter extends OncePerRequestFilter {
@@ -37,39 +41,66 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         final String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (isValid(authHeader)) {
-            String jwt = authHeader.replace("Bearer ", "");
-            if(notExpired(jwt)) {
-                String userName = jwtUtility.extractUsername(jwt);
-                LOGGER.info("Extracted username from JWT username={}", userName);
-                if(userName != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (headerIsValid(authHeader)) {
+            String jwt = extractJwt(authHeader);
+            if (jwtInDate(jwt)) {
+                String userName = extractUserName(jwt);
+                if (unauthenticatedUserExists(userName)) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(userName);
-                    LOGGER.info("No existing security context, retrieved user details details={}", userDetails);
-                    if(jwtUtility.validateToken(jwt, userDetails)) {
-                        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
-                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                        usernamePasswordAuthenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+                    if (jwtMatches(jwt, userDetails)) {
+                        authenticateUser(request, userDetails);
                     }
                 }
+            } else {
+                response.setHeader("error", "token expired");
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                Map<String, String> errors = new HashMap<>();
+                errors.put("error message", "Token expired");
+                new ObjectMapper().writeValue(response.getOutputStream(), errors);
             }
         }
         filterChain.doFilter(request, response);
     }
 
-    private boolean notExpired(String jwt) {
+    private boolean headerIsValid(String authorizationHeader) {
+        return authorizationHeader != null
+                && authorizationHeader.startsWith("Bearer ");
+    }
+
+    private String extractJwt(String authHeader) {
+        return authHeader.replace("Bearer ", "");
+    }
+
+    private boolean jwtInDate(String jwt) {
         try {
             Date date = jwtUtility.extractExpiration(jwt);
-            LOGGER.info("valid token token expiration date:{}", date);
             return date.after(new Date(System.currentTimeMillis()));
-        } catch(Exception e) {
-            LOGGER.info("caught exception when checking token is not expired");
+        } catch (Exception e) {
+            LOGGER.info("caught exception when checking token is not expired e={}", e.getMessage());
             return false;
         }
     }
 
-    private boolean isValid(String authorizationHeader) {
-        return authorizationHeader != null
-                && authorizationHeader.startsWith("Bearer ");
+    private String extractUserName(String jwt) {
+        String userName = jwtUtility.extractUsername(jwt);
+        LOGGER.info("Extracted username from JWT username={}", userName);
+        return userName;
+    }
+
+    private boolean unauthenticatedUserExists(String userName) {
+        return userName != null && SecurityContextHolder.getContext().getAuthentication() == null;
+    }
+
+    private boolean jwtMatches(String jwt, UserDetails userDetails) {
+        return jwtUtility.validateToken(jwt, userDetails);
+    }
+
+    private void authenticateUser(HttpServletRequest request, UserDetails userDetails) {
+        LOGGER.info("authenticating user={} with granted authorities={}", userDetails.getUsername(), userDetails.getAuthorities());
+        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
+                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+        usernamePasswordAuthenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
     }
 }
