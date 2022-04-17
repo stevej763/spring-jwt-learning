@@ -1,5 +1,7 @@
 package com.example.springsecurityjwttutorial.authentication;
 
+import com.example.springsecurityjwttutorial.filter.AccessDeniedHandler;
+import com.example.springsecurityjwttutorial.filter.JwtAuthenticationEntryPoint;
 import com.example.springsecurityjwttutorial.filter.JwtRequestFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +32,9 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
                 .authorizeRequests().antMatchers("/authenticate", "/register").permitAll()
                 .anyRequest().authenticated()
             .and()
+                .exceptionHandling().accessDeniedHandler(new AccessDeniedHandler())
+                .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
+            .and()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             .and()
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
@@ -37,7 +42,7 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.authenticationProvider(authProvider());
+        auth.authenticationProvider(authenticationProvider());
         auth.userDetailsService(userDetailsService);
     }
 
@@ -48,7 +53,7 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public DaoAuthenticationProvider authProvider() {
+    public DaoAuthenticationProvider authenticationProvider() {
         final DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userDetailsService);
         authProvider.setPasswordEncoder(encoder());

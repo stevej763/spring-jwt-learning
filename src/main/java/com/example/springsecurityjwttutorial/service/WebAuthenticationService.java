@@ -44,9 +44,18 @@ public class WebAuthenticationService {
     }
 
     public AuthenticationResponse createAccount(AccountCreationRequest accountCreationRequest) {
-        PersistedUser createdUser = persistUserData(accountCreationRequest);
-        AuthenticationRequest request = new AuthenticationRequest(createdUser.getUserName(), accountCreationRequest.getPassword());
-        return createAuthenticationToken(request);
+        if (!userExists(accountCreationRequest.getUsername())) {
+            LOGGER.info("no existing user found!");
+            PersistedUser createdUser = persistUserData(accountCreationRequest);
+            AuthenticationRequest request = new AuthenticationRequest(createdUser.getUserName(), accountCreationRequest.getPassword());
+            return createAuthenticationToken(request);
+        } else {
+            return new AuthenticationResponse(false, null, null, "Account exists");
+        }
+    }
+
+    private boolean userExists(String username) {
+        return userRepository.findByUserName(username) != null;
     }
 
     private PersistedUser persistUserData(AccountCreationRequest accountCreationRequest) {
@@ -60,20 +69,32 @@ public class WebAuthenticationService {
     }
 
     public AuthenticationResponse createAuthenticationToken(AuthenticationRequest request) {
-        try {
-            authenticateUser(request);
-        } catch (AuthenticationException exception) {
-            LOGGER.info("caught authentication exception={}", exception.toString());
-            return new AuthenticationResponse(false, null, null, "problem authenticating");
+        if (userExists(request.getUsername())) {
+            try {
+                authenticateUser(request);
+            } catch (AuthenticationException exception) {
+                LOGGER.info("caught authentication exception={}", exception.toString());
+                return new AuthenticationResponse(false, null, null, "problem authenticating");
+            }
+            UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
+            String accessToken = generateAccessToken(userDetails);
+            String refreshToken = generateRefreshToken(userDetails);
+            return new AuthenticationResponse(true, accessToken, refreshToken, null);
+        } else {
+            return new AuthenticationResponse(false, null, null, "Username or password incorrect");
         }
-        String jwt = generateJwt(request);
-        return new AuthenticationResponse(true, jwt, null, null);
     }
 
-    private String generateJwt(AuthenticationRequest request) {
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
+    private String generateRefreshToken(UserDetails userDetails) {
+        String jwt = jwtUtility.generateRefreshToken(userDetails);
+        LOGGER.info("new refresh token generated for user={} jwt={}", userDetails.getUsername(), jwt);
+
+        return jwt;
+    }
+
+    private String generateAccessToken(UserDetails userDetails) {
         String jwt = jwtUtility.generateAccessToken(userDetails);
-        LOGGER.info("new JWT generated for user={} jwt={}",userDetails.getUsername(), jwt);
+        LOGGER.info("new access token generated for user={} jwt={}", userDetails.getUsername(), jwt);
         return jwt;
     }
 

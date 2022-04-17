@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class AuthenticationResponse {
 
     private final boolean success;
-    private final String jwt;
+    private final String accessToken;
     private final String refreshToken;
     private final String errorMessage;
 
@@ -14,13 +14,13 @@ public class AuthenticationResponse {
                                   @JsonProperty("refreshToken") String refreshToken,
                                   @JsonProperty("errorMessage") String errorMessage) {
         this.success = success;
-        this.jwt = accessToken;
+        this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.errorMessage = errorMessage;
     }
 
-    public String getJwt() {
-        return jwt;
+    public String getAccessToken() {
+        return accessToken;
     }
 
     public boolean isSuccess() {

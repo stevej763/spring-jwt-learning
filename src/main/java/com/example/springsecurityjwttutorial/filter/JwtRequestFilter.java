@@ -2,12 +2,11 @@ package com.example.springsecurityjwttutorial.filter;
 
 import com.example.springsecurityjwttutorial.authentication.UserDetailsServiceImpl;
 import com.example.springsecurityjwttutorial.jwt.JwtUtility;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.ExpiredJwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -21,8 +20,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 
 @Service
 public class JwtRequestFilter extends OncePerRequestFilter {
@@ -43,7 +40,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         final String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (headerIsValid(authHeader)) {
             String jwt = extractJwt(authHeader);
-            if (jwtInDate(jwt)) {
+            if (jwtInDate(jwt, request)) {
                 String userName = extractUserName(jwt);
                 if (unauthenticatedUserExists(userName)) {
                     UserDetails userDetails = userDetailsService.loadUserByUsername(userName);
@@ -51,13 +48,6 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                         authenticateUser(request, userDetails);
                     }
                 }
-            } else {
-                response.setHeader("error", "token expired");
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                Map<String, String> errors = new HashMap<>();
-                errors.put("error message", "Token expired");
-                new ObjectMapper().writeValue(response.getOutputStream(), errors);
             }
         }
         filterChain.doFilter(request, response);
@@ -72,12 +62,13 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         return authHeader.replace("Bearer ", "");
     }
 
-    private boolean jwtInDate(String jwt) {
+    private boolean jwtInDate(String jwt, HttpServletRequest request) {
         try {
             Date date = jwtUtility.extractExpiration(jwt);
             return date.after(new Date(System.currentTimeMillis()));
-        } catch (Exception e) {
+        } catch (ExpiredJwtException e) {
             LOGGER.info("caught exception when checking token is not expired e={}", e.getMessage());
+            request.setAttribute("expired", e.getMessage());
             return false;
         }
     }
