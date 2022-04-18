@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
@@ -16,7 +17,15 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import static com.example.springsecurityjwttutorial.api.AuthenticationResource.API_AUTHENTICATION_URL;
+import static com.example.springsecurityjwttutorial.api.SecureResource.API_SECURE;
+
 @EnableWebSecurity
+@EnableGlobalMethodSecurity(
+        securedEnabled = true,
+        jsr250Enabled = true,
+        prePostEnabled = true
+)
 public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     @Autowired
@@ -26,11 +35,13 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
     JwtRequestFilter jwtRequestFilter;
 
     @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http
+    protected void configure(HttpSecurity httpSecurity) throws Exception {
+        httpSecurity
                 .csrf().disable()
-                .authorizeRequests().antMatchers("/authenticate", "/register").permitAll()
-                .anyRequest().authenticated()
+                .authorizeRequests()
+                    .anyRequest().authenticated()
+                    .antMatchers(API_SECURE + "/**").hasAnyAuthority("CAN_FACILITATE", "CAN_MONITOR")
+                    .antMatchers(API_AUTHENTICATION_URL + "/**").permitAll()
             .and()
                 .exceptionHandling().accessDeniedHandler(new AccessDeniedHandler())
                 .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
@@ -41,9 +52,9 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
     }
 
     @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.authenticationProvider(authenticationProvider());
-        auth.userDetailsService(userDetailsService);
+    protected void configure(AuthenticationManagerBuilder authenticationManagerBuilder) throws Exception {
+        authenticationManagerBuilder.authenticationProvider(authenticationProvider());
+        authenticationManagerBuilder.userDetailsService(userDetailsService);
     }
 
     @Override
@@ -54,10 +65,10 @@ public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
-        final DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(encoder());
-        return authProvider;
+        final DaoAuthenticationProvider authenticationProvider = new DaoAuthenticationProvider();
+        authenticationProvider.setUserDetailsService(userDetailsService);
+        authenticationProvider.setPasswordEncoder(encoder());
+        return authenticationProvider;
     }
 
     @Bean

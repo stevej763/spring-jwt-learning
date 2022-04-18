@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -20,6 +21,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 
 @Service
 public class JwtRequestFilter extends OncePerRequestFilter {
@@ -43,9 +45,10 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             if (jwtInDate(jwt, request)) {
                 String userName = extractUserName(jwt);
                 if (unauthenticatedUserExists(userName)) {
+                    List<GrantedAuthority> authorities = jwtUtility.extractAuthorities(jwt);
                     UserDetails userDetails = userDetailsService.loadUserByUsername(userName);
                     if (jwtMatches(jwt, userDetails)) {
-                        authenticateUser(request, userDetails);
+                        authenticateUser(request, userDetails, authorities);
                     }
                 }
             }
@@ -87,10 +90,10 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         return jwtUtility.validateToken(jwt, userDetails);
     }
 
-    private void authenticateUser(HttpServletRequest request, UserDetails userDetails) {
-        LOGGER.info("authenticating user={} with granted authorities={}", userDetails.getUsername(), userDetails.getAuthorities());
+    private void authenticateUser(HttpServletRequest request, UserDetails userDetails, List<GrantedAuthority> authorities) {
+        LOGGER.info("authenticating user={} with granted authorities={}", userDetails.getUsername(), authorities);
         UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
-                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
         usernamePasswordAuthenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
     }

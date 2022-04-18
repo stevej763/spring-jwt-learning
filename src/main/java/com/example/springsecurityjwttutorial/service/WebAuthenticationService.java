@@ -1,6 +1,7 @@
 package com.example.springsecurityjwttutorial.service;
 
 import com.example.springsecurityjwttutorial.authentication.PersistedUser;
+import com.example.springsecurityjwttutorial.authentication.Role;
 import com.example.springsecurityjwttutorial.authentication.UserDetailsServiceImpl;
 import com.example.springsecurityjwttutorial.dto.AccountCreationRequest;
 import com.example.springsecurityjwttutorial.dto.AuthenticationRequest;
@@ -17,6 +18,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -59,10 +61,12 @@ public class WebAuthenticationService {
     }
 
     private PersistedUser persistUserData(AccountCreationRequest accountCreationRequest) {
+
         PersistedUser user = new PersistedUser(
                 UUID.randomUUID(),
                 accountCreationRequest.getUsername(),
-                encoder.encode(accountCreationRequest.getPassword()));
+                encoder.encode(accountCreationRequest.getPassword()),
+                List.of(Role.USER));
         PersistedUser persistedUser = userRepository.save(user);
         LOGGER.info("saved new user to userRepository user={}", persistedUser);
         return persistedUser;
@@ -79,6 +83,8 @@ public class WebAuthenticationService {
             UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
             String accessToken = generateAccessToken(userDetails);
             String refreshToken = generateRefreshToken(userDetails);
+            
+            LOGGER.info("user={} authorities={}", userDetails.getUsername(), userDetails.getAuthorities());
             return new AuthenticationResponse(true, accessToken, refreshToken, null);
         } else {
             return new AuthenticationResponse(false, null, null, "Username or password incorrect");
@@ -88,7 +94,6 @@ public class WebAuthenticationService {
     private String generateRefreshToken(UserDetails userDetails) {
         String jwt = jwtUtility.generateRefreshToken(userDetails);
         LOGGER.info("new refresh token generated for user={} jwt={}", userDetails.getUsername(), jwt);
-
         return jwt;
     }
 

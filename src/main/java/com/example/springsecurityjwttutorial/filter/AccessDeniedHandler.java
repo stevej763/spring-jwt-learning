@@ -16,8 +16,8 @@ public class AccessDeniedHandler implements org.springframework.security.web.acc
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException accessDeniedException) throws IOException {
-
         AuthenticationResponse apiResponse = new AuthenticationResponse(false, null, null, "Access Denied");
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         OutputStream outputStream = response.getOutputStream();
         ObjectMapper mapper = new ObjectMapper();
         mapper.writeValue(outputStream, apiResponse);
